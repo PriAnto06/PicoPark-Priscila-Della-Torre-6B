@@ -1,9 +1,44 @@
 <!DOCTYPE html>
 <html>
-  <body style="margin:0; overflow:hidden;">
+  <head>
+    <title>Pico Park Clone</title>
+
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #87CEEB;
+        font-family: Arial;
+      }
+
+      #ui {
+        position: absolute;
+        top: 10px;
+        width: 100%;
+        text-align: center;
+        font-size: 24px;
+        color: black;
+      }
+
+      #hint {
+        position: absolute;
+        bottom: 10px;
+        width: 100%;
+        text-align: center;
+        font-size: 14px;
+        color: #333;
+      }
+    </style>
+  </head>
+
+  <body>
     <canvas id="game"></canvas>
 
+    <div id="ui">COOPEREN PARA GANAR</div>
+    <div id="hint">A / D para moverse — ESPACIO para saltar</div>
+
     <script src="/socket.io/socket.io.js"></script>
+
     <script>
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
@@ -14,20 +49,129 @@
       const socket = io();
 
       let players = {};
+      let key = {};
+      let door = {};
+      let platforms = [];
+      let level = 1;
+
+      let inputs = {
+        left: false,
+        right: false,
+        jump: false,
+      };
 
       socket.on("update", (data) => {
-        players = data;
+        players = data.players;
+        key = data.key;
+        door = data.door;
+        platforms = data.platforms;
+        level = data.level;
       });
+
+      // 🎮 CONTROLES
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "a") inputs.left = true;
+        if (e.key === "d") inputs.right = true;
+        if (e.key === " ") inputs.jump = true;
+        socket.emit("input", inputs);
+      });
+
+      document.addEventListener("keyup", (e) => {
+        if (e.key === "a") inputs.left = false;
+        if (e.key === "d") inputs.right = false;
+        if (e.key === " ") inputs.jump = false;
+        socket.emit("input", inputs);
+      });
+
+      // 👤 PERSONITA
+      function drawPlayer(p) {
+        let x = p.x;
+        let y = p.y;
+
+        // sombra
+        ctx.fillStyle = "rgba(0,0,0,0.2)";
+        ctx.beginPath();
+        ctx.ellipse(x + 20, y + 42, 15, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // cuerpo redondeado
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.roundRect(x, y, 40, 40, 15);
+        ctx.fill();
+
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // ojos
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(x + 12, y + 15, 5, 0, Math.PI * 2);
+        ctx.arc(x + 28, y + 15, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // pupilas
+        ctx.fillStyle = "black";
+        ctx.beginPath();
+        ctx.arc(x + 12, y + 15, 2, 0, Math.PI * 2);
+        ctx.arc(x + 28, y + 15, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // patitas
+        ctx.fillRect(x + 8, y + 35, 8, 8);
+        ctx.fillRect(x + 24, y + 35, 8, 8);
+      }
 
       function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // 🌤 fondo
+        ctx.fillStyle = "#87CEEB";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // ☁️ nube
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(100, 100, 30, 0, Math.PI * 2);
+        ctx.arc(130, 100, 30, 0, Math.PI * 2);
+        ctx.arc(115, 80, 30, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 🟩 plataformas (del server)
+        ctx.fillStyle = "green";
+        for (let p of platforms) {
+          ctx.fillRect(p.x, p.y, p.w, p.h);
+        }
+
+        // 🚪 puerta
+        ctx.fillStyle = "brown";
+        ctx.fillRect(door.x, door.y, 50, 70);
+
+        // 🔑 llave animada
+        ctx.fillStyle = "gold";
+        ctx.fillRect(
+          key.x,
+          key.y + Math.sin(Date.now() / 200) * 5,
+          20,
+          20
+        );
+
+        // 👥 jugadores
         for (let id in players) {
           let p = players[id];
+          drawPlayer(p);
 
-          ctx.fillStyle = p.color;
-          ctx.fillRect(p.x, p.y, 40, 40);
+          if (p.hasKey) {
+            ctx.fillStyle = "white";
+            ctx.fillText("🔑", p.x, p.y - 10);
+          }
         }
+
+        // 🧾 UI nivel
+        ctx.fillStyle = "black";
+        ctx.font = "20px Arial";
+        ctx.fillText("Nivel: " + level, 20, 30);
 
         requestAnimationFrame(draw);
       }
