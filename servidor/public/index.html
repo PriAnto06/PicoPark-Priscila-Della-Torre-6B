@@ -1,60 +1,22 @@
 <!doctype html>
 <html>
   <head>
-    <title>Pico Park Clone</title>
+    <title>Pico Park Fix</title>
 
     <style>
       body {
         margin: 0;
         overflow: hidden;
         background: #87ceeb;
-        font-family: Arial;
       }
-
       canvas {
         display: block;
-      }
-
-      #ui {
-        position: absolute;
-        top: 10px;
-        width: 100%;
-        text-align: center;
-        font-size: 24px;
-      }
-
-      #controls {
-        position: absolute;
-        bottom: 20px;
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        padding: 0 40px;
-      }
-
-      .btn {
-        background: rgba(0, 0, 0, 0.5);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-        font-size: 20px;
-        user-select: none;
       }
     </style>
   </head>
 
   <body>
     <canvas id="game"></canvas>
-
-    <div id="ui">COOPEREN PARA GANAR</div>
-
-    <div id="controls">
-      <div>
-        <div class="btn" id="left">⬅️</div>
-        <div class="btn" id="right">➡️</div>
-      </div>
-      <div class="btn" id="jump">SALTO</div>
-    </div>
 
     <script src="/socket.io/socket.io.js"></script>
 
@@ -67,78 +29,62 @@
 
       const socket = io();
 
-      let players = {};
+      let player = {};
       let key = {};
       let door = {};
       let platforms = [];
       let level = 1;
 
-      let inputs = {
-        left: false,
-        right: false,
-        jump: false,
-      };
+      let inputs = { left: false, right: false, jump: false };
 
-      // 📡 recibir estado
+      // 📡 datos del server
       socket.on("update", (data) => {
-        players = data.players;
+        const ids = Object.keys(data.players);
+
+        if (ids.length > 0) {
+          player = data.players[ids[0]];
+        }
+
         key = data.key;
         door = data.door;
         platforms = data.platforms;
         level = data.level;
       });
 
-      // 🎮 enviar inputs continuamente (CLAVE)
-      setInterval(() => {
-        socket.emit("input", inputs);
-      }, 1000 / 30);
-
-      // ⌨️ TECLADO
+      // 🎮 controles
       document.addEventListener("keydown", (e) => {
         if (e.key === "a") inputs.left = true;
         if (e.key === "d") inputs.right = true;
         if (e.key === " ") inputs.jump = true;
+
+        socket.emit("input", inputs);
       });
 
       document.addEventListener("keyup", (e) => {
         if (e.key === "a") inputs.left = false;
         if (e.key === "d") inputs.right = false;
         if (e.key === " ") inputs.jump = false;
+
+        socket.emit("input", inputs);
       });
 
-      // 📱 BOTONES
-      function bindBtn(id, key) {
-        const btn = document.getElementById(id);
-
-        btn.onmousedown = () => (inputs[key] = true);
-        btn.onmouseup = () => (inputs[key] = false);
-
-        btn.ontouchstart = () => (inputs[key] = true);
-        btn.ontouchend = () => (inputs[key] = false);
-      }
-
-      bindBtn("left", "left");
-      bindBtn("right", "right");
-      bindBtn("jump", "jump");
-
-      // 👤 PERSONITA
+      // 👤 player
       function drawPlayer(p) {
-        let x = p.x;
-        let y = p.y;
+        if (!p) return;
 
-        ctx.fillStyle = p.color;
+        ctx.fillStyle = p.color || "red";
         ctx.beginPath();
-        ctx.roundRect(x, y, 40, 40, 15);
+        ctx.roundRect(p.x, p.y, 40, 40, 15);
         ctx.fill();
 
         ctx.fillStyle = "white";
         ctx.beginPath();
-        ctx.arc(x + 12, y + 15, 5, 0, Math.PI * 2);
-        ctx.arc(x + 28, y + 15, 5, 0, Math.PI * 2);
+        ctx.arc(p.x + 12, p.y + 15, 5, 0, Math.PI * 2);
+        ctx.arc(p.x + 28, p.y + 15, 5, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // 🎨 RENDER
+      // 🎮 LOOP
       function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -152,21 +98,22 @@
           ctx.fillRect(p.x, p.y, p.w, p.h);
         }
 
-        // puerta
-        ctx.fillStyle = "brown";
+        // 🚪 PUERTA (AQUÍ VA LO QUE PEDISTE)
+        ctx.fillStyle = door.unlocked ? "orange" : "brown";
         ctx.fillRect(door.x, door.y, 50, 70);
 
-        // llave
-        ctx.fillStyle = "gold";
-        ctx.fillRect(key.x, key.y, 20, 20);
-
-        // jugadores
-        for (let id in players) {
-          drawPlayer(players[id]);
+        // 🔑 llave
+        if (key && !player.hasKey) {
+          ctx.fillStyle = "gold";
+          ctx.fillRect(key.x, key.y, 20, 20);
         }
+
+        // 👤 jugador
+        drawPlayer(player);
 
         // UI
         ctx.fillStyle = "black";
+        ctx.font = "20px Arial";
         ctx.fillText("Nivel: " + level, 20, 30);
 
         requestAnimationFrame(draw);
